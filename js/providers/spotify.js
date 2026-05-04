@@ -136,6 +136,7 @@ function toTrack(s) {
     durationSeconds: s.duration_ms ? s.duration_ms / 1000 : null,
     genre: null,                       // Spotify hat Genre nur auf Artist-Ebene
     artworkUrl: s.album?.images?.[0]?.url ?? null,
+    previewUrl: s.preview_url ?? null, // 30-Sek-MP3 für Audio-Analyse
     bpm: null,
     key: null,
     energy: null,
