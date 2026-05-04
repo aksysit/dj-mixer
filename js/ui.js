@@ -25,6 +25,7 @@ function bindEvents() {
   $('connect-btn').addEventListener('click', () => callbacks.onConnect?.());
   $('enrich-btn').addEventListener('click', () => callbacks.onEnrich?.());
   $('settings-btn').addEventListener('click', () => openModal());
+  $('local-import-btn').addEventListener('click', () => callbacks.onLocalImportPick?.());
 
   // Library
   $('search-input').addEventListener('input', e => {

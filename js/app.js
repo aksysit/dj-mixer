@@ -7,6 +7,7 @@ import { tidal } from './providers/tidal.js';
 import { recommend } from './engine.js';
 import { enrichTrack, enrichTracks, cacheCount, clearCache, clearNegativeCache } from './getsongbpm.js';
 import { rerank as aiRerank } from './ai.js';
+import { importFromFiles, pickFolder, installDropZone } from './local-import.js';
 
 const PROVIDERS = { spotify, tidal };
 
@@ -156,7 +157,70 @@ ui.init({
   onClearNegativeCache() {
     clearNegativeCache();
     state.patch({ statusMessage: 'Negativ-Cache gelöscht.' });
+  },
+
+  async onLocalImportPick() {
+    const files = await pickFolder();
+    if (!files || files.length === 0) {
+      state.patch({ statusMessage: 'Kein Ordner gewählt.' });
+      return;
+    }
+    await runLocalImport(files);
   }
+});
+
+async function runLocalImport(files) {
+  state.patch({
+    isWorking: true,
+    statusMessage: `Lokale Files werden importiert (${files.length} gefunden)…`,
+    enrichmentProgress: { done: 0, total: files.length }
+  });
+  const tracks = await importFromFiles(files, (done, total, name) => {
+    state.patch({
+      enrichmentProgress: { done, total },
+      statusMessage: `Analysiere lokal: ${done}/${total}` + (name ? ` — ${name.slice(0, 40)}` : '')
+    });
+  });
+  // Mit bestehender Library mergen, dedup nach lookupKey (artist+title)
+  const existing = state.get().library;
+  const seen = new Map();
+  for (const t of [...existing, ...tracks]) {
+    const k = `${(t.artist || '').toLowerCase().trim()} - ${(t.title || '').toLowerCase().trim()}`;
+    // Lokale Tracks bevorzugen (haben akkuratere BPM aus voller Track-Länge)
+    if (!seen.has(k) || t.source === 'local') seen.set(k, t);
+  }
+  const merged = Array.from(seen.values());
+  state.patch({
+    library: merged,
+    isWorking: false,
+    enrichmentProgress: null,
+    statusMessage: `Lokal-Import fertig: ${tracks.length} neue Tracks. Library: ${merged.length} Songs total.`
+  });
+}
+
+// Drag&Drop überall im Fenster aktivieren
+installDropZone(document.body, async (files) => {
+  document.getElementById('drop-overlay').hidden = true;
+  await runLocalImport(files);
+});
+
+// Overlay sichtbar machen wenn Files reingezogen werden
+let dragDepth = 0;
+window.addEventListener('dragenter', (e) => {
+  if (![...e.dataTransfer.types].includes('Files')) return;
+  dragDepth++;
+  document.getElementById('drop-overlay').hidden = false;
+});
+window.addEventListener('dragleave', () => {
+  dragDepth--;
+  if (dragDepth <= 0) {
+    dragDepth = 0;
+    document.getElementById('drop-overlay').hidden = true;
+  }
+});
+window.addEventListener('drop', () => {
+  dragDepth = 0;
+  document.getElementById('drop-overlay').hidden = true;
 });
 
 async function recomputeRecommendations() {
