@@ -14,6 +14,7 @@ const state = {
 
   weddingMode: localStorage.getItem('weddingMode') !== 'false',
   maxBpmDeviation: parseFloat(localStorage.getItem('maxBpmDeviation') || '8'),
+  aiMode: localStorage.getItem('aiMode') === 'true',
 
   isWorking: false,
   statusMessage: 'Bereit. Bitte zuerst Provider verbinden.',
@@ -33,6 +34,9 @@ export function patch(updates) {
   }
   if ('maxBpmDeviation' in updates) {
     localStorage.setItem('maxBpmDeviation', String(state.maxBpmDeviation));
+  }
+  if ('aiMode' in updates) {
+    localStorage.setItem('aiMode', String(state.aiMode));
   }
   emit('change', state);
   for (const k of Object.keys(updates)) emit(`change:${k}`, state[k]);

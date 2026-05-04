@@ -6,6 +6,7 @@ import { spotify } from './providers/spotify.js';
 import { tidal } from './providers/tidal.js';
 import { recommend } from './engine.js';
 import { enrichTrack, enrichTracks, cacheCount, clearCache, clearNegativeCache } from './getsongbpm.js';
+import { rerank as aiRerank } from './ai.js';
 
 const PROVIDERS = { spotify, tidal };
 
@@ -66,38 +67,60 @@ ui.init({
     recomputeRecommendations();
   },
 
-  async onLoadPlaylists() {
+  async onOpenLibraryPicker() {
     const p = activeProvider();
     if (!p.isAuthenticated()) {
       state.patch({ statusMessage: `Bitte zuerst ${p.displayName} verbinden.` });
       return;
     }
-    state.patch({ isWorking: true, statusMessage: 'Lade Playlists…' });
+    state.patch({ isWorking: true, statusMessage: 'Lade Quellen-Liste…' });
     const lists = await p.loadPlaylists();
     state.patch({ playlists: lists, isWorking: false });
-    if (lists.length === 0) {
-      state.patch({ statusMessage: 'Keine Playlists gefunden.' });
+    // Als Quellen anbieten: zuerst Liked Songs, dann alle Playlists.
+    const sources = [
+      { id: '__liked__', kind: 'liked', name: '❤️  Liked Songs', count: null, artworkUrl: null },
+      ...lists.map(pl => ({ id: pl.id, kind: 'playlist', name: pl.name, count: pl.trackCount, artworkUrl: pl.artworkUrl }))
+    ];
+    state.patch({ statusMessage: `${sources.length} Quellen verfügbar.` });
+    ui.showLibraryPicker(sources);
+  },
+
+  async onLoadFromPicker(selected) {
+    if (!selected || selected.length === 0) {
+      state.patch({ statusMessage: 'Mindestens eine Quelle auswählen.' });
       return;
     }
-    // Einfache Auswahl per prompt — bei Bedarf später als hübsches Modal.
-    const choice = window.prompt(
-      `Welche Playlist laden? (Nummer 1-${lists.length})\n` +
-      lists.map((p, i) => `${i + 1}. ${p.name} (${p.trackCount ?? '?'} Tracks)`).join('\n')
-    );
-    const idx = parseInt(choice, 10) - 1;
-    if (Number.isFinite(idx) && lists[idx]) {
-      state.patch({ isWorking: true, statusMessage: `Lade „${lists[idx].name}"…` });
-      const tracks = await p.loadTracksInPlaylist(lists[idx].id);
-      state.patch({
-        library: tracks,
-        isWorking: false,
-        statusMessage: `${tracks.length} Songs aus „${lists[idx].name}" geladen.`,
-        nowPlaying: null,
-        recommendations: []
-      });
-    } else {
-      state.patch({ statusMessage: 'Abgebrochen.' });
+    ui.closeLibraryModal();
+    const p = activeProvider();
+    state.patch({ isWorking: true, statusMessage: `Lade ${selected.length} Quellen…`, library: [], nowPlaying: null, recommendations: [] });
+
+    // Sequenziell (parallele Calls riskieren Spotifys Rate-Limit).
+    const allTracks = [];
+    let done = 0;
+    for (const src of selected) {
+      done++;
+      state.patch({ statusMessage: `Lade Quelle ${done}/${selected.length}…`, enrichmentProgress: { done, total: selected.length } });
+      let tracks = [];
+      if (src.kind === 'liked') {
+        tracks = await p.loadLibrary(2000);
+      } else {
+        tracks = await p.loadTracksInPlaylist(src.id);
+      }
+      allTracks.push(...tracks);
     }
+
+    // Dedup nach Track-ID — gleiche Songs in mehreren Playlists nur einmal halten.
+    const seen = new Map();
+    for (const t of allTracks) {
+      if (!seen.has(t.id)) seen.set(t.id, t);
+    }
+    const merged = Array.from(seen.values());
+    state.patch({
+      library: merged,
+      isWorking: false,
+      enrichmentProgress: null,
+      statusMessage: `${merged.length} eindeutige Songs aus ${selected.length} Quellen geladen.`
+    });
   },
 
   async onSelectTrack(track) {
@@ -118,6 +141,11 @@ ui.init({
     recomputeRecommendations();
   },
 
+  onAiToggle() {
+    // Reagiert auf das ✨ AI-Toggle in der Suggestions-Header.
+    recomputeRecommendations();
+  },
+
   onClearCache() {
     if (confirm('Den kompletten BPM-Cache wirklich löschen?')) {
       clearCache();
@@ -131,21 +159,49 @@ ui.init({
   }
 });
 
-function recomputeRecommendations() {
+async function recomputeRecommendations() {
   const s = state.get();
   if (!s.nowPlaying || s.nowPlaying.bpm == null) {
     state.patch({ recommendations: [] });
     return;
   }
-  const recs = recommend(s.library, s.nowPlaying, {
+  // Schritt 1: Algorithmische Top-30-Vorauswahl (instant, keine Wartezeit).
+  const baseRecs = recommend(s.library, s.nowPlaying, {
     maxBpmDeviation: s.maxBpmDeviation,
     weddingMode: s.weddingMode,
-    maxResults: 12
+    maxResults: 30
   });
+  // Sofort die ersten 12 zeigen, damit der DJ nicht wartet.
   state.patch({
-    recommendations: recs,
-    statusMessage: `${recs.length} Vorschläge berechnet.`
+    recommendations: baseRecs.slice(0, 12),
+    statusMessage: `${baseRecs.length} Kandidaten berechnet${s.aiMode ? ' — AI rankt…' : '.'}`
   });
+
+  // Schritt 2: Wenn AI-Modus an, mit Haiku neu ranken.
+  if (s.aiMode) {
+    const apiKey = localStorage.getItem('anthropic_api_key');
+    if (!apiKey) {
+      state.patch({ statusMessage: 'AI-Modus an, aber kein Anthropic-Key. In Einstellungen eintragen.' });
+      return;
+    }
+    if (baseRecs.length === 0) return;
+    try {
+      const refined = await aiRerank(baseRecs, s.nowPlaying, {
+        weddingMode: s.weddingMode,
+        maxResults: 10
+      });
+      // Nur übernehmen, wenn der aktuell laufende Track noch derselbe ist
+      // (Race-Condition-Schutz, falls der User schon weitergeklickt hat).
+      if (state.get().nowPlaying?.id === s.nowPlaying.id) {
+        state.patch({
+          recommendations: refined,
+          statusMessage: `✨ AI-Ranking fertig (${refined.length} Vorschläge).`
+        });
+      }
+    } catch (e) {
+      state.patch({ statusMessage: `AI-Reranking fehlgeschlagen: ${e.message}` });
+    }
+  }
 }
 
 // Initiale Library nach erfolgreichem OAuth automatisch laden

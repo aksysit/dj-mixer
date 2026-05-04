@@ -36,7 +36,7 @@
     </div>
     <div class="col-footer">
       <span id="library-count">0 / 0 Songs</span>
-      <button id="load-playlists-btn" class="ghost">Playlists laden</button>
+      <button id="library-picker-btn" class="ghost">Bibliothek wählen…</button>
     </div>
   </section>
 
@@ -51,10 +51,16 @@
   <section class="col suggestions-col">
     <div class="suggestions-header">
       <h2>Übergänge</h2>
-      <label class="toggle">
-        <input type="checkbox" id="wedding-mode-toggle" checked>
-        <span>Wedding-Modus</span>
-      </label>
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="ai-mode-toggle">
+          <span>✨ AI-Modus</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="wedding-mode-toggle" checked>
+          <span>Wedding-Modus</span>
+        </label>
+      </div>
     </div>
     <div id="suggestions-list" class="track-list">
       <div class="empty-state">
@@ -123,6 +129,17 @@
             <a href="https://getsongbpm.com/api" target="_blank" rel="noopener">getsongbpm.com/api</a>.
           </p>
         </fieldset>
+
+        <fieldset>
+          <legend>Anthropic (Claude AI)</legend>
+          <label>API-Key
+            <input type="password" id="anthropic-key" placeholder="sk-ant-…">
+          </label>
+          <p class="hint">
+            Optional. Aktiviert das AI-Reranking („✨ AI-Modus" oben rechts). Key bekommst du auf
+            <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>. Pro Übergang ~0,001-0,002 €.
+          </p>
+        </fieldset>
       </div>
 
       <!-- Mixing tab -->
@@ -165,6 +182,29 @@
         </p>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- LIBRARY-PICKER MODAL -->
+<div id="library-modal" class="modal" hidden>
+  <div class="modal-backdrop" data-close-library-modal></div>
+  <div class="modal-content">
+    <header>
+      <h2>Bibliothek wählen</h2>
+      <button class="close-x" data-close-library-modal aria-label="Schließen">×</button>
+    </header>
+    <div class="modal-body">
+      <p class="hint" id="lib-modal-status" style="margin:0 0 12px">Lade Quellen…</p>
+      <div class="lib-actions">
+        <button class="ghost" id="lib-select-all">Alle wählen</button>
+        <button class="ghost" id="lib-select-none">Keine wählen</button>
+      </div>
+      <div id="lib-source-list" class="lib-source-list"></div>
+    </div>
+    <footer class="modal-footer">
+      <button data-close-library-modal>Abbrechen</button>
+      <button class="primary" id="lib-load-btn">Bibliothek laden</button>
+    </footer>
   </div>
 </div>
 

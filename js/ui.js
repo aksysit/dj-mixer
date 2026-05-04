@@ -30,7 +30,15 @@ function bindEvents() {
   $('search-input').addEventListener('input', e => {
     state.patch({ searchText: e.target.value });
   });
-  $('load-playlists-btn').addEventListener('click', () => callbacks.onLoadPlaylists?.());
+  $('library-picker-btn').addEventListener('click', () => callbacks.onOpenLibraryPicker?.());
+
+  // Library-Picker-Modal
+  document.querySelectorAll('[data-close-library-modal]').forEach(el =>
+    el.addEventListener('click', closeLibraryModal)
+  );
+  $('lib-select-all').addEventListener('click', () => setAllLibChecks(true));
+  $('lib-select-none').addEventListener('click', () => setAllLibChecks(false));
+  $('lib-load-btn').addEventListener('click', () => callbacks.onLoadFromPicker?.(getSelectedLibSources()));
 
   // Suggestions
   $('wedding-mode-toggle').addEventListener('change', e => {
@@ -58,6 +66,13 @@ function bindEvents() {
   });
   $('getsongbpm-key').addEventListener('change', e => {
     localStorage.setItem('getsongbpm_key', e.target.value.trim());
+  });
+  $('anthropic-key').addEventListener('change', e => {
+    localStorage.setItem('anthropic_api_key', e.target.value.trim());
+  });
+  $('ai-mode-toggle').addEventListener('change', e => {
+    state.patch({ aiMode: e.target.checked });
+    callbacks.onAiToggle?.(e.target.checked);
   });
   $('setting-wedding-mode').addEventListener('change', e => {
     state.patch({ weddingMode: e.target.checked });
@@ -229,6 +244,7 @@ function suggestionRowHTML(r) {
           ${t.key ? `<span class="tag"><span class="tag-strong">${camelotString(t.key)}</span><span class="tag-sub">${esc(r.keyTransitionLabel)}</span></span>` : ''}
           ${t.genre ? `<span class="tag">${esc(t.genre)}</span>` : ''}
         </div>
+        ${r.aiReason ? `<div class="ai-reason">✨ ${esc(r.aiReason)}</div>` : ''}
       </div>
       <div class="score-badge ${scoreClass(r.totalScore)}">${score}</div>
     </div>
@@ -276,8 +292,10 @@ function prefillSettings() {
   $('tidal-client-id').value = localStorage.getItem('tidal_client_id') || '';
   $('tidal-country').value = localStorage.getItem('tidal_country') || 'DE';
   $('getsongbpm-key').value = localStorage.getItem('getsongbpm_key') || '';
+  $('anthropic-key').value = localStorage.getItem('anthropic_api_key') || '';
   $('setting-wedding-mode').checked = state.get().weddingMode;
   $('wedding-mode-toggle').checked = state.get().weddingMode;
+  $('ai-mode-toggle').checked = state.get().aiMode;
   $('setting-bpm-deviation').value = state.get().maxBpmDeviation;
   $('bpm-dev-display').textContent = state.get().maxBpmDeviation;
 }
@@ -287,6 +305,50 @@ function updateRedirectDisplays() {
     new URL('callback-spotify.html', window.location.href).toString();
   $('tidal-redirect-display').textContent =
     new URL('callback-tidal.html', window.location.href).toString();
+}
+
+// ================= Library Picker Modal =================
+
+/**
+ * Wird aus app.js aufgerufen, wenn die Quellen-Liste vom Provider geladen ist.
+ * sources: Array von { id, name, count, artworkUrl, kind: 'liked'|'playlist' }
+ */
+export function showLibraryPicker(sources) {
+  const list = $('lib-source-list');
+  list.innerHTML = sources.map(s => `
+    <label class="lib-source-row">
+      <input type="checkbox" data-source-id="${escAttr(s.id)}" data-kind="${s.kind}" checked>
+      <div class="lib-source-art" ${s.artworkUrl ? `style="background-image:url('${escAttr(s.artworkUrl)}')"` : ''}></div>
+      <div class="lib-source-meta">
+        <div class="lib-source-name">${esc(s.name)}</div>
+        <div class="lib-source-count">${s.count != null ? s.count + ' Tracks' : ''}</div>
+      </div>
+    </label>
+  `).join('');
+  $('lib-modal-status').textContent = `${sources.length} Quellen verfügbar — wähle aus, was in die Library soll.`;
+  $('library-modal').hidden = false;
+}
+
+export function closeLibraryModal() {
+  $('library-modal').hidden = true;
+}
+
+export function setLibraryPickerStatus(text) {
+  $('lib-modal-status').textContent = text;
+}
+
+function setAllLibChecks(checked) {
+  document.querySelectorAll('#lib-source-list input[type=checkbox]').forEach(cb => {
+    cb.checked = checked;
+  });
+}
+
+function getSelectedLibSources() {
+  const out = [];
+  document.querySelectorAll('#lib-source-list input[type=checkbox]:checked').forEach(cb => {
+    out.push({ id: cb.dataset.sourceId, kind: cb.dataset.kind });
+  });
+  return out;
 }
 
 // ================= Helpers =================
