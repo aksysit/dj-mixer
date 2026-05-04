@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DJ Mixer — a-it.net</title>
+<style>
+  :root {
+    --bg: #0e0f12;
+    --fg: #e8eaed;
+    --muted: #9aa0a6;
+    --accent: #4ec3ff;
+    --card: #1a1c20;
+    --border: #262a30;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 80px 24px;
+  }
+  header h1 {
+    font-size: 40px;
+    margin: 0 0 8px;
+    letter-spacing: -0.5px;
+  }
+  header .tag {
+    color: var(--muted);
+    font-size: 16px;
+  }
+  section {
+    margin-top: 48px;
+  }
+  h2 {
+    font-size: 22px;
+    margin: 0 0 12px;
+    letter-spacing: -0.2px;
+  }
+  p {
+    color: #cfd2d6;
+    margin: 0 0 16px;
+  }
+  a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(78, 195, 255, 0.4);
+  }
+  a:hover {
+    border-bottom-color: var(--accent);
+  }
+  .credit-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-top: 16px;
+  }
+  .credit-card h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+  }
+  .credit-card ul {
+    margin: 0;
+    padding-left: 20px;
+  }
+  .credit-card li {
+    margin: 6px 0;
+    color: #cfd2d6;
+  }
+  footer {
+    margin-top: 80px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>DJ Mixer</h1>
+    <p class="tag">Internes Empfehlungs-Tool für Live-DJ-Sets · a-it.net</p>
+  </header>
+
+  <section>
+    <h2>Was das ist</h2>
+    <p>
+      DJ Mixer ist eine native macOS-Anwendung, die meine Streaming-Bibliothek
+      (Spotify, Apple Music, Tidal) ausliest und während eines Live-Sets passende
+      nächste Songs vorschlägt — sortiert nach BPM-Nähe, harmonischer
+      Kompatibilität (Camelot-Wheel), Genre und Energy. Optimiert für
+      Wedding/Pop/Charts-Sets.
+    </p>
+  </section>
+
+  <section>
+    <h2>Datenquellen &amp; Credits</h2>
+    <p>
+      Die Funktionalität dieses Tools wäre ohne die folgenden Datenquellen nicht
+      möglich. An dieser Stelle daher ausdrücklicher Dank:
+    </p>
+
+    <div class="credit-card">
+      <h3>BPM &amp; Tonart</h3>
+      <ul>
+        <li>
+          BPM-, Tonart- und Camelot-Code-Daten werden bereitgestellt von
+          <a href="https://getsongbpm.com">GetSongBPM</a>.
+          Vielen Dank für die kostenlose API!
+        </li>
+      </ul>
+    </div>
+
+    <div class="credit-card">
+      <h3>Streaming-Bibliotheken</h3>
+      <ul>
+        <li>Spotify Web API — Library, Playlists, Suche</li>
+        <li>Apple MusicKit — Library, Playlists, Suche</li>
+        <li>Tidal Developer Platform — Library, Playlists, Suche</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    © 2026 a-it.net ·
+    Powered by <a href="https://getsongbpm.com">GetSongBPM</a>
+  </footer>
+</main>
+</body>
+</html>
