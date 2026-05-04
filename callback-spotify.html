@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>DJ Mixer — Spotify Login</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { display:flex; align-items:center; justify-content:center; height:100vh; }
+  .callback-card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    max-width: 460px;
+    text-align: center;
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin: 0 auto 18px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .err { color: var(--bad); margin-top: 12px; word-break: break-word; }
+</style>
+</head>
+<body>
+<div class="callback-card">
+  <div class="spinner" id="spinner"></div>
+  <h2 id="status">Spotify-Login wird abgeschlossen …</h2>
+  <p id="detail" class="hint" style="color: var(--fg-secondary)">Code wird gegen Token getauscht.</p>
+  <p id="error" class="err" hidden></p>
+</div>
+
+<script type="module">
+  import { handleCallback } from './js/oauth.js';
+
+  const config = {
+    clientId: localStorage.getItem('spotify_client_id') || '',
+    authorizeEndpoint: 'https://accounts.spotify.com/authorize',
+    tokenEndpoint: 'https://accounts.spotify.com/api/token',
+    redirectUri: new URL('callback-spotify.html', window.location.href).toString(),
+    scopes: []
+  };
+
+  try {
+    await handleCallback('spotify', config);
+    document.getElementById('status').textContent = 'Login erfolgreich';
+    document.getElementById('detail').textContent = 'Du wirst zur App weitergeleitet …';
+    document.getElementById('spinner').style.display = 'none';
+    setTimeout(() => {
+      window.location.replace('index.html');
+    }, 800);
+  } catch (e) {
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('status').textContent = 'Login fehlgeschlagen';
+    document.getElementById('detail').textContent = 'Bitte zurück zur App und erneut versuchen.';
+    const err = document.getElementById('error');
+    err.textContent = e.message;
+    err.hidden = false;
+    setTimeout(() => {
+      window.location.replace('index.html');
+    }, 4000);
+  }
+</script>
+</body>
+</html>

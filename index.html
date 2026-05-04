@@ -3,141 +3,178 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DJ Mixer — a-it.net</title>
-<style>
-  :root {
-    --bg: #0e0f12;
-    --fg: #e8eaed;
-    --muted: #9aa0a6;
-    --accent: #4ec3ff;
-    --card: #1a1c20;
-    --border: #262a30;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--fg);
-    line-height: 1.55;
-    -webkit-font-smoothing: antialiased;
-  }
-  main {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 80px 24px;
-  }
-  header h1 {
-    font-size: 40px;
-    margin: 0 0 8px;
-    letter-spacing: -0.5px;
-  }
-  header .tag {
-    color: var(--muted);
-    font-size: 16px;
-  }
-  section {
-    margin-top: 48px;
-  }
-  h2 {
-    font-size: 22px;
-    margin: 0 0 12px;
-    letter-spacing: -0.2px;
-  }
-  p {
-    color: #cfd2d6;
-    margin: 0 0 16px;
-  }
-  a {
-    color: var(--accent);
-    text-decoration: none;
-    border-bottom: 1px solid rgba(78, 195, 255, 0.4);
-  }
-  a:hover {
-    border-bottom-color: var(--accent);
-  }
-  .credit-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px 24px;
-    margin-top: 16px;
-  }
-  .credit-card h3 {
-    margin: 0 0 8px;
-    font-size: 16px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-weight: 600;
-  }
-  .credit-card ul {
-    margin: 0;
-    padding-left: 20px;
-  }
-  .credit-card li {
-    margin: 6px 0;
-    color: #cfd2d6;
-  }
-  footer {
-    margin-top: 80px;
-    padding-top: 24px;
-    border-top: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 14px;
-  }
-</style>
+<title>DJ Mixer</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main>
-  <header>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">♫</span>
     <h1>DJ Mixer</h1>
-    <p class="tag">Internes Empfehlungs-Tool für Live-DJ-Sets · a-it.net</p>
-  </header>
+  </div>
+  <div class="provider-controls">
+    <select id="provider-select" aria-label="Streaming-Provider">
+      <option value="spotify">Spotify</option>
+      <option value="tidal">Tidal</option>
+    </select>
+    <button id="connect-btn" class="primary">Verbinden</button>
+    <button id="enrich-btn" disabled>BPM anreichern</button>
+    <button id="settings-btn" aria-label="Einstellungen">⚙︎</button>
+  </div>
+</header>
 
-  <section>
-    <h2>Was das ist</h2>
-    <p>
-      DJ Mixer ist eine native macOS-Anwendung, die meine Streaming-Bibliothek
-      (Spotify, Apple Music, Tidal) ausliest und während eines Live-Sets passende
-      nächste Songs vorschlägt — sortiert nach BPM-Nähe, harmonischer
-      Kompatibilität (Camelot-Wheel), Genre und Energy. Optimiert für
-      Wedding/Pop/Charts-Sets.
-    </p>
-  </section>
-
-  <section>
-    <h2>Datenquellen &amp; Credits</h2>
-    <p>
-      Die Funktionalität dieses Tools wäre ohne die folgenden Datenquellen nicht
-      möglich. An dieser Stelle daher ausdrücklicher Dank:
-    </p>
-
-    <div class="credit-card">
-      <h3>BPM &amp; Tonart</h3>
-      <ul>
-        <li>
-          BPM-, Tonart- und Camelot-Code-Daten werden bereitgestellt von
-          <a href="https://getsongbpm.com">GetSongBPM</a>.
-          Vielen Dank für die kostenlose API!
-        </li>
-      </ul>
+<main class="three-col">
+  <!-- LIBRARY -->
+  <section class="col library-col">
+    <div class="search-row">
+      <input id="search-input" type="search" placeholder="Suche Titel oder Künstler" autocomplete="off">
     </div>
-
-    <div class="credit-card">
-      <h3>Streaming-Bibliotheken</h3>
-      <ul>
-        <li>Spotify Web API — Library, Playlists, Suche</li>
-        <li>Apple MusicKit — Library, Playlists, Suche</li>
-        <li>Tidal Developer Platform — Library, Playlists, Suche</li>
-      </ul>
+    <div id="library-list" class="track-list">
+      <div class="empty-state">
+        Keine Songs geladen — verbinde dich mit Spotify oder Tidal.
+      </div>
+    </div>
+    <div class="col-footer">
+      <span id="library-count">0 / 0 Songs</span>
+      <button id="load-playlists-btn" class="ghost">Playlists laden</button>
     </div>
   </section>
 
-  <footer>
-    © 2026 a-it.net ·
-    Powered by <a href="https://getsongbpm.com">GetSongBPM</a>
-  </footer>
+  <!-- NOW PLAYING -->
+  <section class="col now-playing-col">
+    <div id="now-playing" class="empty-state">
+      Wähle einen Song als „Now Playing".
+    </div>
+  </section>
+
+  <!-- SUGGESTIONS -->
+  <section class="col suggestions-col">
+    <div class="suggestions-header">
+      <h2>Übergänge</h2>
+      <label class="toggle">
+        <input type="checkbox" id="wedding-mode-toggle" checked>
+        <span>Wedding-Modus</span>
+      </label>
+    </div>
+    <div id="suggestions-list" class="track-list">
+      <div class="empty-state">
+        Setze einen Song als „Now Playing" und reichere die Library mit BPM/Tonart an.
+      </div>
+    </div>
+  </section>
 </main>
+
+<footer class="status-bar">
+  <span id="status-text">Bereit. Bitte zuerst Provider verbinden.</span>
+  <progress id="progress-bar" max="100" value="0" hidden></progress>
+</footer>
+
+<!-- SETTINGS MODAL -->
+<div id="settings-modal" class="modal" hidden>
+  <div class="modal-backdrop" data-close-modal></div>
+  <div class="modal-content">
+    <header>
+      <h2>Einstellungen</h2>
+      <button class="close-x" data-close-modal aria-label="Schließen">×</button>
+    </header>
+
+    <div class="modal-tabs">
+      <button class="tab-btn active" data-tab="api">API-Keys</button>
+      <button class="tab-btn" data-tab="mixing">Mixing</button>
+      <button class="tab-btn" data-tab="cache">Cache</button>
+      <button class="tab-btn" data-tab="about">Credits</button>
+    </div>
+
+    <div class="modal-body">
+      <!-- API tab -->
+      <div class="tab-pane active" data-pane="api">
+        <fieldset>
+          <legend>Spotify</legend>
+          <label>Client-ID
+            <input type="text" id="spotify-client-id" placeholder="abc123…">
+          </label>
+          <p class="hint">
+            developer.spotify.com → Create App → Redirect-URI:
+            <code id="spotify-redirect-display">…wird gleich angezeigt…</code>
+          </p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Tidal</legend>
+          <label>Client-ID
+            <input type="text" id="tidal-client-id" placeholder="…">
+          </label>
+          <label>Country-Code
+            <input type="text" id="tidal-country" value="DE" maxlength="2" style="width:5em">
+          </label>
+          <p class="hint">
+            developer.tidal.com → Apps → Redirect-URI:
+            <code id="tidal-redirect-display">…</code>
+          </p>
+        </fieldset>
+
+        <fieldset>
+          <legend>GetSongBPM</legend>
+          <label>API-Key
+            <input type="text" id="getsongbpm-key" placeholder="abc123…">
+          </label>
+          <p class="hint">
+            Den Key bekommst du auf
+            <a href="https://getsongbpm.com/api" target="_blank" rel="noopener">getsongbpm.com/api</a>.
+          </p>
+        </fieldset>
+      </div>
+
+      <!-- Mixing tab -->
+      <div class="tab-pane" data-pane="mixing">
+        <label class="checkbox-row">
+          <input type="checkbox" id="setting-wedding-mode" checked>
+          Wedding-Modus (mehr Toleranz für Genre/BPM-Sprünge)
+        </label>
+        <label>
+          Maximale BPM-Abweichung: <span id="bpm-dev-display">8</span> %
+          <input type="range" id="setting-bpm-deviation" min="3" max="15" step="1" value="8">
+        </label>
+      </div>
+
+      <!-- Cache tab -->
+      <div class="tab-pane" data-pane="cache">
+        <p class="hint">
+          BPM-Cache liegt in deinem Browser (IndexedDB). Aktuell:
+          <strong id="cache-count">…</strong> Tracks gecacht.
+        </p>
+        <button id="clear-negative-btn">Negativ-Cache löschen</button>
+        <button id="clear-cache-btn" class="danger">Kompletten Cache löschen</button>
+      </div>
+
+      <!-- About / Credits tab -->
+      <div class="tab-pane" data-pane="about">
+        <h3>DJ Mixer</h3>
+        <p>Empfehlungs-Tool für Live-DJ-Sets — Multi-Provider Web-App.</p>
+        <h4>Datenquellen &amp; Credits</h4>
+        <ul>
+          <li>
+            BPM-, Tonart- und Camelot-Code-Daten von
+            <a href="https://getsongbpm.com" target="_blank" rel="noopener">GetSongBPM</a>
+          </li>
+          <li>Streaming-Bibliothek: Spotify Web API</li>
+          <li>Streaming-Bibliothek: Tidal Developer Platform</li>
+        </ul>
+        <p class="hint" style="margin-top:1em">© 2026 a-it.net · Powered by
+          <a href="https://getsongbpm.com" target="_blank" rel="noopener">GetSongBPM</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Backlink im Footer (auch sichtbar ohne Modal — wichtig für GetSongBPM-Compliance) -->
+<aside class="footer-credit">
+  Powered by
+  <a href="https://getsongbpm.com" target="_blank" rel="noopener">GetSongBPM</a>
+  · Spotify · Tidal
+</aside>
+
+<script type="module" src="js/app.js"></script>
 </body>
 </html>
