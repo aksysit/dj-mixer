@@ -1,15 +1,18 @@
-// GetSongBPM-Client + Local-Cache.
+// BPM-Anreicherung — neue Implementierung mit Client-Side Audio-Analyse.
 //
-// Wichtig: Im Browser-Kontext löst der Browser die Cloudflare-Bot-Challenge
-// transparent (über das Cookie aus einem normalen Seitenbesuch). Wenn die
-// erste Anfrage einen Cloudflare-Block sieht, kann der User einmalig manuell
-// https://getsongbpm.com aufrufen — dadurch wird die clearance-Cookie gesetzt,
-// und alle weiteren Fetches gehen durch.
+// Statt einer fragilen API-Anbindung (Cloudflare-Block, CORS, etc.) laden wir
+// 30-Sek-Previews von Spotify/iTunes direkt in den Browser, decodieren mit
+// Web Audio API und bestimmen das BPM lokal.
+//
+// Die externe API dieses Moduls (enrichTrack, enrichTracks, cacheCount, …)
+// bleibt gleich, damit der Rest der App nicht angefasst werden muss.
 
+import { analyzeTrack } from './audio-analyzer.js';
 import { parseClassicalKey, parseCamelot } from './camelot.js';
 
 const CACHE_KEY = 'bpm_cache';
-const RATE_LIMIT_MS = 220;          // ~5 req/s
+const CONCURRENCY = 3;        // 3 parallele Audio-Analysen — stabil im Browser
+const RATE_LIMIT_MS = 50;     // kurze Pause, damit der Audio-Context nicht erstickt
 
 let cacheLoaded = false;
 let cache = {};
@@ -17,22 +20,16 @@ let pendingSave = null;
 
 function loadCache() {
   if (cacheLoaded) return;
-  try {
-    cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
-  } catch {
-    cache = {};
-  }
+  try { cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); }
+  catch { cache = {}; }
   cacheLoaded = true;
 }
 
 function saveCache() {
   if (pendingSave) clearTimeout(pendingSave);
   pendingSave = setTimeout(() => {
-    try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-    } catch (e) {
-      console.warn('Cache-Save fehlgeschlagen — möglicherweise Quota voll', e);
-    }
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); }
+    catch (e) { console.warn('Cache-Save fehlgeschlagen:', e); }
     pendingSave = null;
   }, 800);
 }
@@ -41,12 +38,10 @@ export function cacheCount() {
   loadCache();
   return Object.keys(cache).length;
 }
-
 export function clearCache() {
   cache = {};
   localStorage.removeItem(CACHE_KEY);
 }
-
 export function clearNegativeCache() {
   loadCache();
   for (const key of Object.keys(cache)) {
@@ -69,100 +64,85 @@ function applyToTrack(entry, track) {
     const k = parseClassicalKey(entry.classicalKey);
     if (k) out.key = k;
   }
+  if (entry.energy != null) out.energy = entry.energy;
   out.enrichedAt = entry.fetchedAt;
-  out.source = 'getSongBPM';
+  out.source = entry.source || 'audio-analysis';
   return out;
 }
 
 /**
- * Sucht BPM/Tonart für einen Track, zuerst im Cache, dann live.
- * Gibt einen angereicherten Track zurück (oder den Original-Track ohne Daten).
+ * Reichert einen einzelnen Track an. Liest aus Cache, analysiert sonst
+ * die Preview-Audio.
+ *
+ * Der zweite Parameter "apiKey" wird ignoriert — bleibt nur in der Signatur
+ * damit der Rest der App nicht angefasst werden muss.
  */
-export async function enrichTrack(track, apiKey) {
+export async function enrichTrack(track, _apiKey) {
   loadCache();
   const key = lookupKey(track);
-
-  if (cache[key]) {
-    if (cache[key].notFound) return track;
-    return applyToTrack(cache[key], track);
+  const cached = cache[key];
+  if (cached) {
+    if (cached.notFound) return track;
+    return applyToTrack(cached, track);
   }
-  if (!apiKey) return track;
 
-  const result = await fetchFromAPI(track.title, track.artist, apiKey);
-  cache[key] = result;
-  saveCache();
-
-  if (result.notFound) return track;
-  return applyToTrack(result, track);
+  try {
+    const result = await analyzeTrack(track);
+    const entry = {
+      bpm: Number.isFinite(result.bpm) ? result.bpm : null,
+      camelot: null,
+      classicalKey: null,
+      energy: null,
+      lookupKey: key,
+      fetchedAt: Date.now(),
+      notFound: false,
+      source: result.source || 'audio-analysis'
+    };
+    cache[key] = entry;
+    saveCache();
+    return applyToTrack(entry, track);
+  } catch (e) {
+    // Track konnte nicht analysiert werden (keine Preview, decodier-Fehler) —
+    // ins Negativ-Cache schreiben, damit wir den Track nicht in Endlosschleife
+    // erneut probieren. User kann den Negativ-Cache in den Settings leeren.
+    cache[key] = {
+      bpm: null, camelot: null, classicalKey: null, energy: null,
+      lookupKey: key, fetchedAt: Date.now(), notFound: true,
+      reason: e.message || String(e)
+    };
+    saveCache();
+    return track;
+  }
 }
 
 /**
- * Reichert eine Liste von Tracks sequenziell an, ruft `progress(done, total)` auf.
+ * Reichert eine Liste von Tracks an. Mit beschränkter Parallelität, damit
+ * der Browser-Audio-Context nicht überlastet wird.
  */
-export async function enrichTracks(tracks, apiKey, progress) {
-  const result = [];
-  for (let i = 0; i < tracks.length; i++) {
-    const t = tracks[i];
-    if (t.bpm != null && t.key != null) {
-      result.push(t);
-    } else {
-      result.push(await enrichTrack(t, apiKey));
+export async function enrichTracks(tracks, _apiKey, progress) {
+  const result = new Array(tracks.length);
+  let done = 0;
+  let next = 0;
+
+  async function worker() {
+    while (true) {
+      const i = next++;
+      if (i >= tracks.length) return;
+      const t = tracks[i];
+      if (t.bpm != null) {
+        result[i] = t;
+      } else {
+        result[i] = await enrichTrack(t);
+        if (RATE_LIMIT_MS) await sleep(RATE_LIMIT_MS);
+      }
+      done++;
+      if (progress) progress(done, tracks.length);
     }
-    if (progress) progress(i + 1, tracks.length);
-    await sleep(RATE_LIMIT_MS);
   }
+
+  const workers = Array.from({ length: CONCURRENCY }, () => worker());
+  await Promise.all(workers);
   return result;
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-function sanitize(s) {
-  return (s || '')
-    .replace(/\(feat\..*?\)/gi, '')
-    .replace(/\[feat\..*?\]/gi, '')
-    .replace(/\(ft\..*?\)/gi, '')
-    .replace(/\[ft\..*?\]/gi, '')
-    .replace(/ - Remastered.*$/i, '')
-    .replace(/ \(Remastered.*$/i, '')
-    .replace(/ - Single Version.*$/i, '')
-    .replace(/:/g, '')
-    .trim();
-}
-
-async function fetchFromAPI(title, artist, apiKey) {
-  const cleanTitle = sanitize(title);
-  const cleanArtist = sanitize(artist);
-  const lookup = `song:${cleanTitle} artist:${cleanArtist}`;
-  const url = new URL('https://api.getsongbpm.com/search/');
-  url.searchParams.set('api_key', apiKey);
-  url.searchParams.set('type', 'both');
-  url.searchParams.set('lookup', lookup);
-
-  const fetchedAt = Date.now();
-  try {
-    const resp = await fetch(url.toString(), {
-      headers: { Accept: 'application/json' }
-    });
-    if (!resp.ok) {
-      // 403 = Cloudflare-Block oder Auth-Problem — als notFound markieren,
-      // damit wir nicht in jeder Session erneut anfragen.
-      console.warn('GetSongBPM HTTP', resp.status, '— bitte einmalig getsongbpm.com im Browser aufrufen');
-      return { notFound: true, fetchedAt };
-    }
-    const data = await resp.json();
-    const hits = Array.isArray(data?.search) ? data.search : [];
-    if (!hits.length) return { notFound: true, fetchedAt };
-    const first = hits[0];
-    const bpm = parseFloat(first.tempo);
-    return {
-      bpm: Number.isFinite(bpm) ? bpm : null,
-      camelot: first.open_key || null,
-      classicalKey: first.key_of || null,
-      fetchedAt,
-      notFound: false
-    };
-  } catch (e) {
-    console.warn('GetSongBPM fetch error', e);
-    return { notFound: true, fetchedAt };
-  }
-}
