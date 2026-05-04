@@ -603,6 +603,44 @@ fieldset code {
   border-top: 1px solid var(--border);
 }
 
+/* Drop-Overlay für lokalen Drag&Drop */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(14, 15, 18, 0.85);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  border: 4px dashed var(--accent);
+}
+.drop-overlay[hidden] { display: none; }
+.drop-overlay-content {
+  text-align: center;
+  color: var(--fg);
+}
+.drop-icon {
+  font-size: 64px;
+  color: var(--accent);
+  margin-bottom: 16px;
+  animation: bounce 1.2s infinite;
+}
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+.drop-title {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.drop-sub {
+  font-size: 14px;
+  color: var(--fg-secondary);
+}
+
 /* Footer credit (immer sichtbar — GetSongBPM Compliance) */
 .footer-credit {
   position: fixed;

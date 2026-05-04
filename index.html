@@ -19,6 +19,7 @@
     </select>
     <button id="connect-btn" class="primary">Verbinden</button>
     <button id="enrich-btn" disabled>BPM anreichern</button>
+    <button id="local-import-btn">Lokal importieren…</button>
     <button id="settings-btn" aria-label="Einstellungen">⚙︎</button>
   </div>
 </header>
@@ -205,6 +206,15 @@
       <button data-close-library-modal>Abbrechen</button>
       <button class="primary" id="lib-load-btn">Bibliothek laden</button>
     </footer>
+  </div>
+</div>
+
+<!-- Drop-Overlay für lokale Files (erscheint wenn der User Files ins Fenster zieht) -->
+<div id="drop-overlay" class="drop-overlay" hidden>
+  <div class="drop-overlay-content">
+    <div class="drop-icon">⬇</div>
+    <div class="drop-title">Audio-Dateien hier loslassen</div>
+    <div class="drop-sub">MP3, M4A, WAV, FLAC · Ordner werden rekursiv durchsucht</div>
   </div>
 </div>
 
